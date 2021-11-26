@@ -13,9 +13,11 @@ import (
 	"github.com/xuri/excelize/v2"
 )
 
+// miHoYo's APIs
 const gachaTypeAPI = "https://hk4e-api.mihoyo.com/event/gacha_info/api/getConfigList"
 const gachaListAPI = "https://hk4e-api.mihoyo.com/event/gacha_info/api/getGachaLog"
 
+// Map from pool name to filename
 var logFileList = map[string]string{
 	"常驻祈愿":   "./GachaLog常驻祈愿.json",
 	"新手祈愿":   "./GachaLog新手祈愿.json",
@@ -32,6 +34,7 @@ func main() {
 	makeExcelFile(data)
 }
 
+// Load local .json files and return as dictionary
 func loadLocalLog() map[string][]map[string]string {
 	res := make(map[string][]map[string]string)
 	for name, fp := range logFileList {
@@ -56,6 +59,9 @@ func loadLocalLog() map[string][]map[string]string {
 	return res
 }
 
+// Save gacha logs to .json files.
+// [param]
+// -  logUrl (string): the url found in %userprofile%/AppData/LocalLow/miHoYo/原神/output_log
 func saveLogAsJSON(logUrl string) {
 	types := getGachaTypes(logUrl)
 	for i := range types {
@@ -67,6 +73,7 @@ func saveLogAsJSON(logUrl string) {
 	fmt.Println("End Fetching")
 }
 
+// Get the query mapping in url string
 func getQuery(inurl string) url.Values {
 	urlObj, err := url.Parse(inurl)
 	if err != nil {
@@ -75,6 +82,7 @@ func getQuery(inurl string) url.Values {
 	return urlObj.Query()
 }
 
+// Get gacha types from logUrl
 func getGachaTypes(logUrl string) []map[string]string {
 	typeAddr := gachaTypeAPI + "?" + getQuery(logUrl).Encode()
 	resp, err := http.Get(typeAddr)
@@ -86,6 +94,13 @@ func getGachaTypes(logUrl string) []map[string]string {
 	return (*data)["data"]["gacha_type_list"]
 }
 
+// Get gacha logs from logUrl
+// [param]
+// - logUrl (string): is the url found in %userprofile%/AppData/LocalLow/miHoYo/原神/output_log
+// - key (string): is the key of pool in string type, get via getGachaTypes()
+// - page (string): is the page number in string type, it should originally be int
+// - end_id (string): is the end_id used by miHoYo's api, used to get correct logs when page > 1
+//					  for page=n, end_id is stored in the last entry of page=n-1.
 func getGachaLog(logUrl string, key string, page string, end_id string) []interface{} {
 	qry := getQuery(logUrl)
 	qry.Add("gacha_type", key)
@@ -110,6 +125,7 @@ func getGachaLog(logUrl string, key string, page string, end_id string) []interf
 	return d.(map[string]interface{})["list"].([]interface{})
 }
 
+// Get the entire gacha logs by logUrl and key
 func getFullGachaLog(logUrl, key string) []map[string]string {
 	page := 1
 	var data []map[string]string
@@ -124,6 +140,7 @@ func getFullGachaLog(logUrl, key string) []map[string]string {
 			if blk[len(blk)-1] == nil {
 				fmt.Println("!")
 			}
+			// set the end_id to be used next, by the last entry in the current page
 			end_id = blk[len(blk)-1].(map[string]interface{})["id"].(string)
 
 			page += 1
@@ -144,6 +161,7 @@ func getFullGachaLog(logUrl, key string) []map[string]string {
 	return data
 }
 
+// Save the gacha log to file in json form
 func saveGachaLog(data []map[string]string, filename string) {
 	f, err := os.Create(filename)
 	if err != nil {
@@ -161,6 +179,7 @@ func saveGachaLog(data []map[string]string, filename string) {
 	fmt.Println("Data stored in ", filename)
 }
 
+// Make an excel file
 func makeExcelFile(dataStruct map[string][]map[string]string) {
 	f := excelize.NewFile()
 	colKeyMap := map[string]string{"A": "time", "B": "name", "C": "item_type", "D": "rank_type"}
@@ -197,6 +216,7 @@ func makeExcelFile(dataStruct map[string][]map[string]string) {
 	}
 }
 
+// Automatically find the logUrl.
 func readLogUrl(dir string) string {
 	genshinLog, _ := os.ReadFile(dir + "output_log.txt")
 	z := string(genshinLog)
