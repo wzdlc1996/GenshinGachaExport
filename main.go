@@ -96,11 +96,11 @@ func getGachaTypes(logUrl string) []map[string]string {
 
 // Get gacha logs from logUrl
 // [param]
-// - logUrl (string): is the url found in %userprofile%/AppData/LocalLow/miHoYo/原神/output_log
-// - key (string): is the key of pool in string type, get via getGachaTypes()
-// - page (string): is the page number in string type, it should originally be int
-// - end_id (string): is the end_id used by miHoYo's api, used to get correct logs when page > 1
-//					  for page=n, end_id is stored in the last entry of page=n-1.
+//   - logUrl (string): is the url found in %userprofile%/AppData/LocalLow/miHoYo/原神/output_log
+//   - key (string): is the key of pool in string type, get via getGachaTypes()
+//   - page (string): is the page number in string type, it should originally be int
+//   - end_id (string): is the end_id used by miHoYo's api, used to get correct logs when page > 1
+//     for page=n, end_id is stored in the last entry of page=n-1.
 func getGachaLog(logUrl string, key string, page string, end_id string) []interface{} {
 	qry := getQuery(logUrl)
 	qry.Add("gacha_type", key)
@@ -221,8 +221,20 @@ func readLogUrl(dir string) string {
 	genshinLog, _ := os.ReadFile(dir + "output_log.txt")
 	z := string(genshinLog)
 	//fmt.Println(z)
-	regpatt, _ := regexp.Compile(".*(https://webstatic.mihoyo.com/.*)\n")
-	res := regpatt.FindAllStringSubmatch(z, -1)
+	//get the installation path of Genshin game
+	pathpatt, _ := regexp.Compile("Warmup file (.+?YuanShen_Data).*\n")
+	gamepath := pathpatt.FindAllStringSubmatch(z, -1)
+
+	if gamepath == nil {
+		return ""
+	}
+
+	gachalogdata, _ := os.ReadFile(gamepath[len(gamepath)-1][1] + "/webCaches/Cache/Cache_Data/data_2")
+	regpatt, _ := regexp.Compile(".*(https.+?game_biz=hk4e_cn).*")
+	res := regpatt.FindAllStringSubmatch(string(gachalogdata), -1)
+
+	// regpatt, _ := regexp.Compile(".*(https://webstatic.mihoyo.com/.*)\n")
+	// res := regpatt.FindAllStringSubmatch(z, -1)
 	if res == nil {
 		return ""
 	}
