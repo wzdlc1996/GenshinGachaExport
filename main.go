@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -28,10 +29,20 @@ var logFileList = map[string]string{
 func main() {
 	path, _ := os.UserHomeDir()
 	path = path + "/AppData/LocalLow/miHoYo/原神/"
-	logUrl := readLogUrl(path)
-	saveLogAsJSON(logUrl)
-	data := loadLocalLog()
-	makeExcelFile(data)
+	logUrls, err := readLogUrl(path)
+	if err != nil {
+		panic(err)
+	}
+	for _, logurl := range logUrls {
+		saveLogAsJSON(logurl)
+		data := loadLocalLog()
+		if !isDataEmpty(data) {
+			fmt.Println("Successfully completed")
+			makeExcelFile(data)
+			os.Exit(0)
+		}
+	}
+	fmt.Println("Failed, try to refresh the log")
 }
 
 // Load local .json files and return as dictionary
@@ -55,6 +66,15 @@ func loadLocalLog() map[string][]map[string]string {
 			temp[i] = ttemp
 		}
 		res[name] = temp
+	}
+	return res
+}
+
+// Check whether the loaded data is empty
+func isDataEmpty(data map[string][]map[string]string) bool {
+	res := false
+	for _, val := range data {
+		res = (len(val) == 0) || res
 	}
 	return res
 }
@@ -216,8 +236,8 @@ func makeExcelFile(dataStruct map[string][]map[string]string) {
 	}
 }
 
-// Automatically find the logUrl.
-func readLogUrl(dir string) string {
+// Automatically find all possible logUrl
+func readLogUrl(dir string) (res []string, err error) {
 	genshinLog, _ := os.ReadFile(dir + "output_log.txt")
 	z := string(genshinLog)
 	//fmt.Println(z)
@@ -226,19 +246,33 @@ func readLogUrl(dir string) string {
 	gamepath := pathpatt.FindAllStringSubmatch(z, -1)
 
 	if gamepath == nil {
-		return ""
+		err = errors.New("Failed to find Genshin game path")
+		return
 	}
 
 	gachalogdata, _ := os.ReadFile(gamepath[len(gamepath)-1][1] + "/webCaches/Cache/Cache_Data/data_2")
 	regpatt, _ := regexp.Compile(".*(https.+?game_biz=hk4e_cn).*")
-	res := regpatt.FindAllStringSubmatch(string(gachalogdata), -1)
+	reslist := regpatt.FindAllStringSubmatch(string(gachalogdata), -1)
 
 	// regpatt, _ := regexp.Compile(".*(https://webstatic.mihoyo.com/.*)\n")
 	// res := regpatt.FindAllStringSubmatch(z, -1)
-	if res == nil {
-		return ""
+	if reslist == nil {
+		err = errors.New("Failed to find gacha log urls")
+		return
 	}
-	return res[len(res)-1][1]
+	for _, item := range reslist {
+		res = append(res, item[1])
+	}
+	return res, nil
 	//fmt.Println(res[len(res)-1][1])
 	//os.Stdout.Write(genshinLog)
+}
+
+// Automatically find the logUrl.
+func readLogUrlLast(dir string) string {
+	reslis, err := readLogUrl(dir)
+	if err != nil {
+		return ""
+	}
+	return reslis[len(reslis)-1]
 }
